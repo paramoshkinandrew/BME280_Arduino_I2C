@@ -20,6 +20,6 @@
     "platforms": "*",
     "build": {
         "srcDir": ".",
-        "srcFilter": "+<*> -<examples>"
+        "srcFilter": "+<*> -<examples> -<images>"
     }
 }
