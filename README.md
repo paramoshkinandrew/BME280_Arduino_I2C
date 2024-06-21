@@ -21,11 +21,6 @@ The main purpose of this library is to make an easy-to-follow example of communi
 * Configurable IIR filter
     * **Default: Off**
     * Off, 2, 4, 8, 16
-* No fine configurations as of now. Current settings:
-    * `1000ms` standby time
-    * `1x` temperature, pressure and humidity oversampling
-    * `normal` device mode
-    * `IIR filter` is off
 
 # Installation
 Look for `BME280_Arduino_I2C` library in Arduino library manager or PlatformIO library manager.
