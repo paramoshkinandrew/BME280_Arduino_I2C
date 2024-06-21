@@ -23,9 +23,8 @@ uint8_t BME280_Arduino_I2C::begin() {
     }
 
     // Set configurations
-    writeRegister(BME280_REG_CTRL_HUM, 0x01);
-    writeRegister(BME280_REG_CTRL_MEAS, 0x27);
-    writeRegister(BME280_REG_CONFIG, 0xA0);
+    applyHumiditySettings();
+    applyConfigs();
 
     // Pull calibration data
     wire->beginTransmission(address);
@@ -84,8 +83,8 @@ BME280Data* BME280_Arduino_I2C::read() {
     if (!initialized) {
         return nullptr;
     }
-    
-    if (millis() < 1000 || millis() > lastRead + 1000) {  // TODO put 1000 as a configuration from the begin as standby time
+
+    if (micros() < READ_D || micros() > lastRead + READ_D) {
         wire->beginTransmission(address);
         wire->write(BME280_REG_DATA);
         wire->endTransmission();
@@ -101,12 +100,73 @@ BME280Data* BME280_Arduino_I2C::read() {
             data->pressure = getPressurePA(t_fine, rawPressure);
             data->humidity = getHumidity(t_fine, rawHumidity);
 
-            lastRead = millis();
+            lastRead = micros();
         } else {
             return nullptr;
         }
     }
     return data;
+}
+
+bool BME280_Arduino_I2C::setHumiditySettings(uint8_t os) {
+    // Invalid values
+    if (os < 1 || os > 5) {
+        return false;
+    }
+
+    // No reason to apply settings when nothing changes
+    if (os == CTRL_HUM) {
+        return true;
+    }
+
+    CTRL_HUM = os;
+    // Apply configurations only if library is initialized, otherwise it would be applied on begin()
+    if (initialized) {
+        applyHumiditySettings();
+    }
+    return true;
+}
+
+bool BME280_Arduino_I2C::setGeneralSettings(uint8_t tOS, uint8_t pOS, uint8_t m) {
+    // Invalid values
+    if (tOS < 1 || tOS > 5 || pOS < 1 || pOS > 5 || m < 0 || m > 3) {
+        return false;
+    }
+
+    // No reason to apply settings when nothing changes
+    if (tOS == OSRS_T && pOS == OSRS_P && m == MODE) {
+        return true;
+    }
+
+    OSRS_T = tOS;
+    OSRS_P = pOS;
+    MODE = m;
+    // Apply configurations only if library is initialized, otherwise it would be applied on begin()
+    if (initialized) {
+        applyGeneralSettings();
+    }
+    return true;
+}
+
+bool BME280_Arduino_I2C::setConfigs(uint8_t tsb, uint8_t filter) {
+    // Invalid values
+    if (tsb < 0 || tsb > 7 || filter < 0 || filter > 4) {
+        return false;
+    }
+
+    // No reason to apply settings when nothing changes
+    if (tsb == T_SB && filter == FILTER) {
+        return true;
+    }
+
+    T_SB = tsb;
+    FILTER = filter;
+
+    // Apply configurations only if library is initialized, otherwise it would be applied on begin()
+    if (initialized) {
+        applyConfigs();
+    }
+    return true;
 }
 
 BME280_S32_t BME280_Arduino_I2C::getFineResolutionTemperature(BME280_S32_t rawTemp) {
@@ -152,6 +212,49 @@ uint8_t BME280_Arduino_I2C::getHumidity(BME280_S32_t t_fine, BME280_S32_t rawHum
     v_x1_u32r = (v_x1_u32r < 0 ? 0 : v_x1_u32r);
     v_x1_u32r = (v_x1_u32r > 419430400 ? 419430400 : v_x1_u32r);
     return (uint8_t)((v_x1_u32r >> 12) / 1024);
+}
+
+void BME280_Arduino_I2C::applyHumiditySettings() {
+    writeRegister(BME280_REG_CTRL_HUM, CTRL_HUM);
+    // Humidity settings will be applied only after general settings are set as well.
+    applyGeneralSettings();
+}
+
+void BME280_Arduino_I2C::applyGeneralSettings() {
+    writeRegister(BME280_REG_CTRL_MEAS, (OSRS_T << 5) | (OSRS_P << 2) | MODE);
+}
+
+void BME280_Arduino_I2C::applyConfigs() {
+    writeRegister(BME280_REG_CONFIG, (T_SB << 5) | (FILTER << 2));
+    // Update READ_D based on T_SB
+    switch (T_SB) {
+        case 0:
+            READ_D = 500;
+            break;
+        case 1:
+            READ_D = 62500;
+            break;
+        case 2:
+            READ_D = 125000;
+            break;
+        case 3:
+            READ_D = 250000;
+            break;
+        case 4:
+            READ_D = 500000;
+            break;
+        case 5:
+            READ_D = 1000000;
+            break;
+        case 6:
+            READ_D = 10000;
+            break;
+        case 7:
+            READ_D = 20000;
+            break;
+        default:
+            break;
+    }
 }
 
 void BME280_Arduino_I2C::writeRegister(uint8_t reg, uint8_t value) {
